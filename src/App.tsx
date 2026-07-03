@@ -6,23 +6,14 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
-
-// ==========================================
-// Vistas Temporales (Placeholders)
-// ==========================================
-
-const DashboardPlaceholder = () => {
-  const { logout } = useAuth();
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-6">
-      <div className="w-full max-w-3xl rounded-lg bg-white p-10 text-center shadow-lg border-t-4 border-blue-600">
-        <h1 className="text-3xl font-extrabold text-gray-900 mb-4">Dashboard Principal de Zenda</h1>
-        <p className="mt-4 text-lg text-gray-600 mb-8">Bienvenido a tu panel de gestión médica.</p>
-        <button onClick={logout} className="px-4 py-2 bg-red-600 hover:bg-red-700 transition-colors text-white rounded font-bold">Cerrar Sesión</button>
-      </div>
-    </div>
-  );
-};
+import DashboardLayout from './layouts/DashboardLayout';
+import DashboardIndex from './pages/dashboard/DashboardIndex';
+import DoctorProfileView from './pages/dashboard/DoctorProfileView';
+import ServicesView from './pages/dashboard/ServicesView';
+import CertificationsView from './pages/dashboard/CertificationsView';
+import WorkScheduleView from './pages/dashboard/WorkScheduleView';
+import ReviewsView from './pages/dashboard/ReviewsView';
+import WalletView from './pages/dashboard/WalletView';
 
 // ==========================================
 // Componente interno que decide dinámicamente si enviar al usuario 
@@ -32,7 +23,7 @@ const RootRedirect: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) return null; // Evita redirecciones falsas mientras carga la app
-  
+
   return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />;
 };
 
@@ -54,8 +45,15 @@ const App: React.FC = () => {
 
           {/* Rutas Protegidas (Requieren Sesión Activa) */}
           <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<DashboardPlaceholder />} />
-            {/* Aquí agregaremos futuras rutas como /schedule, /patients, etc. */}
+            <Route path="/dashboard" element={<DashboardLayout />}>
+              <Route index element={<DashboardIndex />} />
+              <Route path="profile" element={<DoctorProfileView />} />
+              <Route path="services" element={<ServicesView />} />
+              <Route path="certifications" element={<CertificationsView />} />
+              <Route path="schedule" element={<WorkScheduleView />} />
+              <Route path="reviews" element={<ReviewsView />} />
+              <Route path="wallet" element={<WalletView />} />
+            </Route>
           </Route>
 
           {/* Catch-All para rutas no definidas (Redirige a la raíz) */}
@@ -67,3 +65,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -119,7 +119,7 @@ export default function ForgotPassword() {
       await forgotPasswordService(userEmail);
       setResendSuccess(true);
       setTimeout(() => setResendSuccess(false), 5000); // Ocultar mensaje de éxito después de 5s
-    } catch (err) {
+    } catch {
       setApiError('No se pudo reenviar el código. Inténtalo más tarde.');
     } finally {
       setIsResending(false);
