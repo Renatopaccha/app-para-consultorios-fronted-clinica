@@ -21,7 +21,7 @@ const INITIAL_SCHEDULE: DaySchedule[] = [
   { dayName: 'Lunes', isActive: true, shifts: [{ startTime: { hour: '09', minute: '00', ampm: 'AM' }, endTime: { hour: '05', minute: '00', ampm: 'PM' } }] },
   { dayName: 'Martes', isActive: true, shifts: [{ startTime: { hour: '09', minute: '00', ampm: 'AM' }, endTime: { hour: '05', minute: '00', ampm: 'PM' } }] },
   { dayName: 'Miércoles', isActive: true, shifts: [{ startTime: { hour: '09', minute: '00', ampm: 'AM' }, endTime: { hour: '05', minute: '00', ampm: 'PM' } }] },
-  { dayName: 'Jueves', isActive: true, shifts: [{ startTime: '09', minute: '00', ampm: 'AM' }, endTime: { hour: '05', minute: '00', ampm: 'PM' } }] },
+  { dayName: 'Jueves', isActive: true, shifts: [{ startTime: { hour: '09', minute: '00', ampm: 'AM' }, endTime: { hour: '05', minute: '00', ampm: 'PM' } }] },
   { dayName: 'Viernes', isActive: true, shifts: [{ startTime: { hour: '09', minute: '00', ampm: 'AM' }, endTime: { hour: '05', minute: '00', ampm: 'PM' } }] },
   { dayName: 'Sábado', isActive: false, shifts: [{ startTime: { hour: '09', minute: '00', ampm: 'AM' }, endTime: { hour: '01', minute: '00', ampm: 'PM' } }] },
   { dayName: 'Domingo', isActive: false, shifts: [{ startTime: { hour: '09', minute: '00', ampm: 'AM' }, endTime: { hour: '01', minute: '00', ampm: 'PM' } }] },
@@ -155,7 +155,6 @@ export default function WorkScheduleView() {
   const {
     events,
     clinics,
-    schedules,
     metrics,
     isLoadingEvents,
     isLoadingClinics,
@@ -242,7 +241,7 @@ export default function WorkScheduleView() {
     setTimeout(() => { setIsOutlookSyncing(false); setIsOutlookSynced(true); setFilters(f => ({ ...f, outlook: true })); }, 1000);
   };
 
-  const handleCellClick = (dayName: string, hour: number) => {
+  const handleCellClick = (_dayName: string, _hour: number) => {
     setModalInitialTab("cita");
     setIsModalOpen(true);
   };
@@ -348,7 +347,7 @@ export default function WorkScheduleView() {
       {/* Loading skeleton or real grid */}
       {isLoadingEvents ? <GridSkeleton /> : (
       <>
-      {/* Helper Text UI */}}
+      {/* Helper Text UI */}
       <div className="flex items-center gap-2 px-4 py-2.5 bg-sky-50 text-sky-700 text-xs font-medium border-b border-sky-100 shrink-0">
         <Info className="w-4 h-4 shrink-0" />
         <span>💡 Aplasta cualquier casilla del calendario o el botón superior para agregar una cita</span>
@@ -476,7 +475,7 @@ export default function WorkScheduleView() {
                       key={hour} 
                       className="border-b border-slate-100/60 border-dashed cursor-pointer hover:bg-sky-50/30 transition-colors relative"
                       style={{ height: rowHeights[hIdx] }}
-                      onClick={() => handleCellClick(day.name, hour)}
+                      onClick={() => handleCellClick(format(day, 'EEEEEE', { locale: es }), hour)}
                     >
                       {/* Events stacked vertically, full width */}
                       {eventsInSlot.length > 0 && (
