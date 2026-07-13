@@ -79,7 +79,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 // Componente Principal
 // ==========================================
 export default function Register() {
-  const { login: authLogin } = useAuth();
+  const { register: authRegister } = useAuth();
   const navigate = useNavigate();
   
   const [showPassword, setShowPassword] = useState(false);
@@ -104,8 +104,9 @@ export default function Register() {
   const onSubmit = async (data: RegisterFormData) => {
     setApiError(null);
     try {
-      // 1. Ejecutamos el registro en el backend (creará el usuario y nos devolverá JWT + User)
-      await registerService({
+      // 1. Ejecutamos el registro en el backend a través del AuthContext
+      // Esto crea el usuario, recibe JWT + User y lo guarda en el estado local evitando el crash
+      await authRegister({
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
@@ -117,13 +118,10 @@ export default function Register() {
         address: data.address,
       });
 
-      // 2. Si es exitoso, hacemos login directamente usando la función de nuestro AuthContext
-      // AuthContext.login volverá a pedir el token internamente, o podemos mapearlo si tu backend
-      // devuelve la sesión ya activa. Dado que authLogin pide credentials, hacemos un login normal:
-      await authLogin({ email: data.email, password: data.password });
-
-      // 3. Redirigimos al dashboard
-      navigate('/dashboard', { replace: true });
+      // 2. Redirigimos al dashboard dándole tiempo a React para asimilar el nuevo estado global
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+      }, 150);
 
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {

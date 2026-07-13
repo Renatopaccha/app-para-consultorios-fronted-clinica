@@ -61,6 +61,12 @@ const adaptAppointment = (appt: Appointment, weekStart: Date): CalendarEvent | n
   const hh = startDate.getHours().toString().padStart(2, '0');
   const mm = startDate.getMinutes().toString().padStart(2, '0');
 
+  
+  let finalStatus = appt.status;
+  if (appt.status === 'PENDING' && (appt.title === 'Bloqueo de Horario' || appt.patient_name === 'Bloqueo Sistema' || appt.notes === 'bloqueo' || appt.notes === 'personal')) {
+    finalStatus = 'BLOCKED_GOOGLE';
+  }
+
   return {
     id: appt.id,
     title: appt.title,
@@ -68,7 +74,7 @@ const adaptAppointment = (appt: Appointment, weekStart: Date): CalendarEvent | n
     startTime: `${hh}:${mm}`,
     duration: appt.duration_minutes,
     dayIndex,
-    status: appt.status,
+    status: finalStatus,
     clinicId: appt.clinic_id,
   };
 };

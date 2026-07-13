@@ -2,11 +2,13 @@ import { useState, useMemo } from "react";
 import { addWeeks, subWeeks, startOfWeek, addDays, format, isSameDay, startOfMonth, endOfMonth, endOfWeek, addMonths, subMonths, isSameMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { Plus, ChevronDown, ChevronLeft, ChevronRight, Building2, Calendar as CalendarIcon, Lock, CheckCircle2, Clock, AlertCircle, Loader2, Search, UserPlus, Maximize, Minimize, Info, Settings, Trash2, WifiOff, RefreshCw } from "lucide-react";
+import { apiClient } from "../../services/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "../../components/ui/sheet";
 import { Switch } from "../../components/ui/switch";
 import { useCalendarData, type CalendarEvent } from "../../hooks/useCalendarData";
+import { createAppointment } from "../../services/schedule.service";
 
 // ─────────────────────────────────────────────────────────
 // TYPES & MOCKS
@@ -88,27 +90,47 @@ const calculateEventPositions = (dayEvents: CalendarEvent[]): PositionedEvent[] 
 // ─────────────────────────────────────────────────────────
 // REUSABLE TIME SELECTOR (12-HORAS AM/PM)
 // ─────────────────────────────────────────────────────────
-const TimeSelectGroup = () => (
-  <div className="flex items-center gap-1.5 shrink-0">
-    <div className="relative">
-      <select className="w-14 sm:w-16 px-1.5 sm:px-2 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white appearance-none text-center">
-        {Array.from({length: 12}, (_,i) => <option key={i+1} value={i+1}>{(i+1).toString().padStart(2, '0')}</option>)}
-      </select>
+
+interface TimeSelectGroupProps {
+  value: string;
+  onChange: (val: string) => void;
+}
+
+const TimeSelectGroup = ({ value, onChange }: TimeSelectGroupProps) => {
+  const [h24, m] = (value || "09:00").split(':');
+  const numH = parseInt(h24, 10);
+  const ampm = numH >= 12 ? 'PM' : 'AM';
+  const h12 = (numH % 12) || 12;
+
+  const updateTime = (newH12: number, newM: string, newAmPm: string) => {
+    let finalH24 = newH12;
+    if (newAmPm === 'PM' && finalH24 < 12) finalH24 += 12;
+    if (newAmPm === 'AM' && finalH24 === 12) finalH24 = 0;
+    onChange(`${finalH24.toString().padStart(2, '0')}:${newM}`);
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <div className="relative">
+        <select value={h12} onChange={e => updateTime(parseInt(e.target.value, 10), m, ampm)} className="w-14 sm:w-16 px-1.5 sm:px-2 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white appearance-none text-center">
+          {Array.from({length: 12}, (_,i) => <option key={i+1} value={i+1}>{(i+1).toString().padStart(2, '0')}</option>)}
+        </select>
+      </div>
+      <span className="text-slate-400 font-bold">:</span>
+      <div className="relative">
+        <select value={m} onChange={e => updateTime(h12, e.target.value, ampm)} className="w-14 sm:w-16 px-1.5 sm:px-2 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white appearance-none text-center">
+          {['00', '15', '30', '45'].map(min => <option key={min} value={min}>{min}</option>)}
+        </select>
+      </div>
+      <div className="relative ml-0.5">
+        <select value={ampm} onChange={e => updateTime(h12, m, e.target.value)} className="w-16 px-1.5 sm:px-2 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-slate-50 appearance-none text-center">
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+      </div>
     </div>
-    <span className="text-slate-400 font-bold">:</span>
-    <div className="relative">
-      <select className="w-14 sm:w-16 px-1.5 sm:px-2 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white appearance-none text-center">
-        {['00', '15', '30', '45'].map(m => <option key={m} value={m}>{m}</option>)}
-      </select>
-    </div>
-    <div className="relative ml-0.5">
-      <select className="w-16 px-1.5 sm:px-2 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-slate-50 appearance-none text-center">
-        <option value="AM">AM</option>
-        <option value="PM">PM</option>
-      </select>
-    </div>
-  </div>
-);
+  );
+};
 
 const ShiftTimeSelector = ({ value, onChange }: { value: ShiftTime, onChange: (val: ShiftTime) => void }) => (
   <div className="flex items-center gap-1.5 shrink-0">
@@ -180,6 +202,55 @@ export default function WorkScheduleView() {
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [customTime, setCustomTime] = useState(false);
+  const [eventDate, setEventDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [eventStartTime, _setEventStartTime] = useState("09:00");
+  
+  const handleStartTimeChange = (newStartTime: string) => {
+    _setEventStartTime(newStartTime);
+    
+    // Calcular endTime (+1 hora)
+    const [h, m] = newStartTime.split(':').map(Number);
+    if (!isNaN(h) && !isNaN(m)) {
+      const nextH = (h + 1) % 24;
+      setEventEndTime(`${nextH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+    }
+  };
+  const [eventEndTime, setEventEndTime] = useState("10:00");
+  const [eventTitle, setEventTitle] = useState("");
+  
+  // Patient form states
+  const [patientFirstName, setPatientFirstName] = useState("");
+  const [patientLastName, setPatientLastName] = useState("");
+  const [patientEmail, setPatientEmail] = useState("");
+  const [patientCedula, setPatientCedula] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Hybrid Search States
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [existingPatientId, setExistingPatientId] = useState<string | null>(null);
+  const [selectedPatientName, setSelectedPatientName] = useState<string>("");
+  const [showNewPatientForm, setShowNewPatientForm] = useState(false);
+
+  // Search function
+  const handleSearchPatient = async (q: string) => {
+    setSearchQuery(q);
+    if (q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const res = await apiClient.get(`/api/doctors/patients/search?q=${encodeURIComponent(q)}`);
+      setSearchResults(res.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
 
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [configClinic, setConfigClinic] = useState("avila");
@@ -222,23 +293,138 @@ export default function WorkScheduleView() {
     setSchedulesMap(newMap);
   };
 
-  const handleSaveSchedule = () => {
-    const payload = {
-      clinic: configClinic,
-      schedule: scheduleConfig
-    };
-    console.log("Saving Base Availability Schedule:", payload);
-    setIsConfigOpen(false);
+  
+  const handleCreateEvent = async () => {
+    try {
+      setIsSubmitting(true);
+      const type = modalInitialTab;
+      
+      const finalClinicId = selectedClinic === 'all' ? (clinics[0]?.id || '') : selectedClinic;
+      
+      if (!finalClinicId) {
+        alert("Para agendar una cita, primero debes registrar una sede o consultorio en tu perfil.");
+        setIsSubmitting(false);
+        return;
+      }
+      
+      let realPatientId = undefined;
+      
+      if (type === 'cita') {
+        if (existingPatientId) {
+          realPatientId = existingPatientId;
+        } else if (showNewPatientForm) {
+          if (!patientFirstName.trim() || !patientLastName.trim() || !patientEmail.trim()) {
+            alert('Por favor completa el nombre, apellido y correo del paciente.');
+            setIsSubmitting(false);
+            return;
+          }
+          // Crear/Buscar la cuenta fantasma
+          const guestResponse = await apiClient.post('/api/doctors/patients/guest', {
+            firstName: patientFirstName,
+            lastName: patientLastName,
+            email: patientEmail,
+            cedula: patientCedula
+          });
+          realPatientId = guestResponse.data.patientId;
+        } else {
+          alert('Por favor selecciona un paciente o crea uno nuevo.');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+      
+      const payload: any = {
+        clinicId: finalClinicId,
+        date: new Date(eventDate).toISOString(),
+        startTime: eventStartTime,
+        endTime: eventEndTime,
+        type,
+        title: eventTitle || (type === 'cita' ? 'Cita' : 'Bloqueo')
+      };
+      
+      if (type === 'cita') {
+        payload.patientId = realPatientId;
+        payload.serviceId = 'temp-service-123';
+      }
+      
+      console.log("====================================");
+      console.log("🚀 [handleCreateEvent] ENVIANDO PETICIÓN A BACKEND");
+      console.log("PAYLOAD COMPLETO:", JSON.stringify(payload, null, 2));
+      console.log("====================================");
+
+      const res = await createAppointment(payload);
+      console.log("✅ Evento creado exitosamente:", res);
+      
+      setIsModalOpen(false);
+      refetchEvents();
+      
+      // Reset forms
+      setPatientFirstName("");
+      setPatientLastName("");
+      setPatientEmail("");
+      setPatientCedula("");
+      setExistingPatientId(null);
+      setSelectedPatientName("");
+      setShowNewPatientForm(false);
+      setSearchQuery("");
+      setSearchResults([]);
+      
+    } catch (error: any) {
+      console.error("❌ Error devuelto al crear evento:", error);
+      alert(`Error al crear el evento: ${error.response?.data?.error || error.message || 'Desconocido'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleSyncGoogle = () => {
-    setIsGoogleSyncing(true);
-    setTimeout(() => { setIsGoogleSyncing(false); setIsGoogleSynced(true); setFilters(f => ({ ...f, google: true })); }, 1000);
+
+  const handleSaveSchedule = async () => {
+    try {
+      if (!configClinic) return;
+      
+      const payload = {
+        clinic_id: configClinic,
+        days: scheduleConfig
+      };
+      
+      await saveDoctorSchedule(payload);
+      console.log("✅ Horarios base guardados exitosamente");
+      setIsConfigOpen(false);
+      
+      // Opcional: refetchEvents() si necesitas refrescar la vista
+      refetchEvents();
+    } catch (error: any) {
+      console.error("❌ Error al guardar horarios:", error);
+      alert(`Error al guardar: ${error.message || 'Desconocido'}`);
+    }
   };
 
-  const handleSyncOutlook = () => {
-    setIsOutlookSyncing(true);
-    setTimeout(() => { setIsOutlookSyncing(false); setIsOutlookSynced(true); setFilters(f => ({ ...f, outlook: true })); }, 1000);
+  const handleSyncGoogle = async () => {
+    try {
+      setIsGoogleSyncing(true);
+      // 1. Pedimos la URL al backend usando apiClient (que inyecta el token Bearer)
+      const res = await apiClient.get('/api/calendar/google/auth');
+      // 2. Redirigimos a la URL de Google
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+      }
+    } catch (error) {
+      console.error('Error al sincronizar Google:', error);
+      setIsGoogleSyncing(false);
+    }
+  };
+
+  const handleSyncOutlook = async () => {
+    try {
+      setIsOutlookSyncing(true);
+      const res = await apiClient.get('/api/calendar/outlook/auth');
+      if (res.data?.url) {
+        window.location.href = res.data.url;
+      }
+    } catch (error) {
+      console.error('Error al sincronizar Outlook:', error);
+      setIsOutlookSyncing(false);
+    }
   };
 
   const handleCellClick = (_dayName: string, _hour: number) => {
@@ -462,7 +648,7 @@ export default function WorkScheduleView() {
                      style={{ top: block.top, height: block.height }}
                    >
                      <span className="absolute top-1 left-1.5 text-[10px] font-medium text-slate-400 capitalize">
-                       📍 {block.clinicId === 'avila' ? 'El Ávila' : block.clinicId === 'mercedes' ? 'Las Mercedes' : block.clinicId}
+                       📍 {clinics.find(c => c.id === block.clinicId)?.name || 'Sede'}
                      </span>
                    </div>
                 ))}
@@ -811,17 +997,91 @@ export default function WorkScheduleView() {
               {/* PESTAÑA CITA */}
               <TabsContent value="cita" className="mt-0 space-y-5">
                 <div className="space-y-5">
-                   <div className="space-y-1.5">
-                     <div className="flex justify-between items-center">
-                       <label className="text-xs font-semibold text-slate-700">Paciente</label>
-                       <button className="text-[11px] font-semibold text-sky-500 hover:text-sky-600 flex items-center gap-1 transition-colors">
-                         <UserPlus className="w-3 h-3" /> Nuevo paciente
-                       </button>
+                   <div className="space-y-3 p-4 bg-slate-50 border border-slate-100 rounded-xl">
+                     <div className="flex items-center gap-2 mb-1">
+                       <UserPlus className="w-4 h-4 text-sky-500" />
+                       <span className="text-sm font-semibold text-slate-700">Datos del Paciente</span>
                      </div>
-                     <div className="relative">
-                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                       <input type="text" placeholder="Buscar paciente por nombre o cédula..." className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white" />
-                     </div>
+                     
+                     {!showNewPatientForm && !existingPatientId && (
+                       <div className="relative z-10">
+                         <div className="relative">
+                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                           <input 
+                             type="text" 
+                             value={searchQuery}
+                             onChange={(e) => handleSearchPatient(e.target.value)}
+                             placeholder="Buscar paciente por nombre o correo..." 
+                             className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white" 
+                           />
+                           {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-sky-500 animate-spin" />}
+                         </div>
+                         
+                         {searchResults.length > 0 && (
+                           <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-20">
+                             {searchResults.map(p => (
+                               <div 
+                                 key={p.id} 
+                                 onClick={() => {
+                                   setExistingPatientId(p.id);
+                                   setSelectedPatientName(p.firstName + ' ' + p.lastName);
+                                   setSearchResults([]);
+                                   setSearchQuery('');
+                                 }}
+                                 className="px-4 py-2 hover:bg-slate-50 cursor-pointer flex flex-col"
+                               >
+                                 <span className="text-sm font-medium text-slate-700">{p.firstName} {p.lastName}</span>
+                                 <span className="text-xs text-slate-500">{p.email}</span>
+                               </div>
+                             ))}
+                           </div>
+                         )}
+                         
+                         <button 
+                           onClick={() => setShowNewPatientForm(true)}
+                           className="mt-3 text-[13px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1.5 transition-colors"
+                         >
+                           <Plus className="w-3.5 h-3.5" /> Agregar Nuevo Paciente
+                         </button>
+                       </div>
+                     )}
+
+                     {existingPatientId && (
+                       <div className="flex items-center justify-between p-3 bg-white border border-sky-100 rounded-lg">
+                         <div className="flex flex-col">
+                           <span className="text-xs text-slate-500 font-medium">Paciente Seleccionado</span>
+                           <span className="text-sm font-semibold text-slate-800">{selectedPatientName}</span>
+                         </div>
+                         <button 
+                           onClick={() => {
+                             setExistingPatientId(null);
+                             setSelectedPatientName('');
+                           }}
+                           className="text-xs font-semibold text-rose-500 hover:text-rose-600"
+                         >
+                           Cambiar
+                         </button>
+                       </div>
+                     )}
+
+                     {showNewPatientForm && (
+                       <div className="space-y-3">
+                         <div className="grid grid-cols-2 gap-3">
+                           <input type="text" value={patientFirstName} onChange={(e) => setPatientFirstName(e.target.value)} placeholder="Nombre *" className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white transition-all" />
+                           <input type="text" value={patientLastName} onChange={(e) => setPatientLastName(e.target.value)} placeholder="Apellido *" className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white transition-all" />
+                         </div>
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                           <input type="email" value={patientEmail} onChange={(e) => setPatientEmail(e.target.value)} placeholder="Correo Electrónico *" className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white transition-all" />
+                           <input type="text" value={patientCedula} onChange={(e) => setPatientCedula(e.target.value)} placeholder="Cédula (Opcional)" className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white transition-all" />
+                         </div>
+                         <button 
+                           onClick={() => setShowNewPatientForm(false)}
+                           className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                         >
+                           Cancelar (Buscar Existente)
+                         </button>
+                       </div>
+                     )}
                    </div>
 
                    <div className="space-y-1.5">
@@ -836,19 +1096,19 @@ export default function WorkScheduleView() {
                        </label>
                      </div>
                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                       <input type="date" className="w-full sm:flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white" />
-                       <TimeSelectGroup />
+                       <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="w-full sm:flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white" />
+                       <TimeSelectGroup value={eventStartTime} onChange={handleStartTimeChange} />
                      </div>
                    </div>
 
                    <div className="grid grid-cols-2 gap-4">
                      <div className="space-y-1.5">
                        <label className="text-xs font-semibold text-slate-700">Servicio Médico</label>
-                       <select className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white appearance-none">
-                         <option>Consulta General</option>
-                         <option>Chequeo Rutina</option>
-                         <option>Control Post-Operatorio</option>
-                       </select>
+                       <select className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white appearance-none" value={selectedClinic === 'all' ? (clinics[0]?.id || '') : selectedClinic} disabled>
+                       {clinics.map(c => (
+                         <option key={c.id} value={c.id}>{c.name}</option>
+                       ))}
+                     </select>
                      </div>
                      <div className="space-y-1.5">
                        <label className="text-xs font-semibold text-slate-700">Duración</label>
@@ -866,7 +1126,7 @@ export default function WorkScheduleView() {
                      <label className="text-xs font-semibold text-slate-700">Sede / Clínica</label>
                      <select className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 bg-white appearance-none">
                        <option>Clínica El Ávila</option>
-                       <option>Centro Médico Las Mercedes</option>
+                       <option>Centro Médico {clinics.find(c => c.id === configClinic)?.name || 'Sede Seleccionada'}</option>
                      </select>
                    </div>
 
@@ -877,7 +1137,7 @@ export default function WorkScheduleView() {
                      </label>
                    </div>
 
-                   <button className="w-full mt-2 py-2.5 bg-sky-500 hover:bg-sky-600 active:scale-[0.98] text-white font-semibold text-sm rounded-xl shadow-sm shadow-sky-200 transition-all">
+                   <button onClick={handleCreateEvent} className="w-full mt-2 py-2.5 bg-sky-500 hover:bg-sky-600 active:scale-[0.98] text-white font-semibold text-sm rounded-xl shadow-sm shadow-sky-200 transition-all">
                      Agendar Cita
                    </button>
                 </div>
@@ -890,7 +1150,7 @@ export default function WorkScheduleView() {
                      <label className="text-xs font-semibold text-slate-700">Inicio (Fecha y Hora)</label>
                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                        <input type="date" className="w-full sm:flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-500/20 bg-white" />
-                       <TimeSelectGroup />
+                       <TimeSelectGroup value={eventEndTime} onChange={setEventEndTime} />
                      </div>
                    </div>
                    
@@ -898,7 +1158,7 @@ export default function WorkScheduleView() {
                      <label className="text-xs font-semibold text-slate-700">Fin (Fecha y Hora)</label>
                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                        <input type="date" className="w-full sm:flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-500/20 bg-white" />
-                       <TimeSelectGroup />
+                       <TimeSelectGroup value={eventStartTime} onChange={handleStartTimeChange} />
                      </div>
                    </div>
                  </div>
@@ -908,7 +1168,7 @@ export default function WorkScheduleView() {
                    <input type="text" placeholder="Ej. Almuerzo, Cirugía programada..." className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-500/20 bg-white" />
                  </div>
 
-                 <button className="w-full mt-2 py-2.5 bg-slate-800 hover:bg-slate-900 active:scale-[0.98] text-white font-semibold text-sm rounded-xl shadow-sm transition-all">
+                 <button onClick={handleCreateEvent} className="w-full mt-2 py-2.5 bg-slate-800 hover:bg-slate-900 active:scale-[0.98] text-white font-semibold text-sm rounded-xl shadow-sm transition-all">
                    Bloquear Horario
                  </button>
               </TabsContent>
@@ -924,16 +1184,16 @@ export default function WorkScheduleView() {
                    <label className="text-xs font-semibold text-slate-700">Fecha y Hora</label>
                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                      <input type="date" className="w-full sm:flex-1 px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-500/20 bg-white" />
-                     <TimeSelectGroup />
+                     <TimeSelectGroup value={eventEndTime} onChange={setEventEndTime} />
                    </div>
                  </div>
 
                  <div className="space-y-1.5">
                    <label className="text-xs font-semibold text-slate-700">Descripción del Evento</label>
-                   <input type="text" placeholder="Ej. Trámite bancario, Asunto familiar..." className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-500/20 bg-white" />
+                   <input type="text" value={eventTitle} onChange={(e) => setEventTitle(e.target.value)} placeholder="Ej. Trámite bancario, Asunto familiar..." className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-500/20 bg-white" />
                  </div>
 
-                 <button className="w-full mt-2 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:scale-[0.98] text-white font-semibold text-sm rounded-xl shadow-sm transition-all">
+                 <button onClick={handleCreateEvent} className="w-full mt-2 py-2.5 bg-indigo-500 hover:bg-indigo-600 active:scale-[0.98] text-white font-semibold text-sm rounded-xl shadow-sm transition-all">
                    Guardar Evento Personal
                  </button>
               </TabsContent>
@@ -976,7 +1236,7 @@ export default function WorkScheduleView() {
                 <div className="flex items-center gap-3 text-sm text-slate-600">
                   <Building2 className="w-4 h-4 text-sky-500 shrink-0" />
                   <span className="font-medium">
-                    {selectedClinic === 'all' ? 'Sede Principal (Default)' : selectedClinic === 'avila' ? 'Clínica El Ávila' : 'Centro Médico Las Mercedes'}
+                    {clinics.find(c => c.id === selectedEvent.clinicId)?.name || 'Sede'}
                   </span>
                 </div>
                 
@@ -1028,9 +1288,18 @@ export default function WorkScheduleView() {
               </label>
               <div className="relative">
                 <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <select value={configClinic} onChange={(e) => setConfigClinic(e.target.value)} className="w-full pl-9 pr-10 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/25 focus:border-sky-400 transition-all duration-200 appearance-none font-medium">
-                  <option value="avila">Clínica El Ávila</option>
-                  <option value="mercedes">Centro Médico Las Mercedes</option>
+                <select 
+                  value={configClinic} 
+                  onChange={(e) => setConfigClinic(e.target.value)} 
+                  className="w-full pl-9 pr-10 py-3 border border-slate-200 rounded-xl text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/25 focus:border-sky-400 transition-all duration-200 appearance-none font-medium"
+                >
+                  {clinics.length === 0 ? (
+                    <option value="" disabled>No tienes sedes registradas</option>
+                  ) : (
+                    clinics.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))
+                  )}
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
@@ -1093,7 +1362,7 @@ export default function WorkScheduleView() {
           </div>
           
           <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
-            <button onClick={handleSaveSchedule} className="w-full py-3 bg-teal-500 hover:bg-teal-600 active:scale-[0.99] text-white font-semibold rounded-xl shadow-sm shadow-teal-200 transition-all flex items-center justify-center gap-2">
+            <button onClick={handleSaveSchedule} disabled={clinics.length === 0} className="w-full py-3 bg-teal-500 hover:bg-teal-600 active:scale-[0.99] disabled:opacity-50 disabled:pointer-events-none text-white font-semibold rounded-xl shadow-sm shadow-teal-200 transition-all flex items-center justify-center gap-2">
               <CheckCircle2 className="w-4 h-4" /> Guardar Horarios
             </button>
           </div>

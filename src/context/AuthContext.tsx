@@ -10,6 +10,7 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
+  register: (credentials: RegisterCredentials) => Promise<void>;
   logout: () => void;
 }
 
@@ -75,6 +76,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   /**
+   * Invoca al servicio de registro y persiste la sesión si es exitoso.
+   */
+  const register = async (credentials: RegisterCredentials): Promise<void> => {
+    try {
+      const { user: newUser, token } = await registerService(credentials);
+      
+      localStorage.setItem('zenda_token', token);
+      localStorage.setItem('zenda_user', JSON.stringify(newUser));
+      
+      setUser(newUser);
+    } catch (error) {
+      console.error('Fallo en el registro:', error);
+      throw error;
+    }
+  };
+
+
+  /**
    * Limpia toda la información de la sesión activa.
    */
   const logout = () => {
@@ -87,7 +106,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isAuthenticated = user !== null;
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

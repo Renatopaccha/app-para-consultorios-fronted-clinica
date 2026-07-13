@@ -22,9 +22,11 @@ apiClient.interceptors.request.use(
     // Buscar el token usando la llave específica
     const token = localStorage.getItem('zenda_token');
     
-    // Si el token existe, agregarlo al header de Authorization
+    // Si el token existe, agregarlo al header de Authorization usando la API correcta
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      if (config.headers) {
+        config.headers.set('Authorization', `Bearer ${token}`);
+      }
     }
     
     return config;
