@@ -60,12 +60,40 @@ export interface RegisterCredentials {
   address?: string; // Dirección de la clínica
 }
 
+export interface InvitationValidation {
+  valid: boolean;
+  emailMasked: string;
+  role: 'DOCTOR' | 'CLINIC_ADMIN';
+  expiresAt: string;
+}
+
+export interface AcceptInvitationPayload {
+  token: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+  licenseNumber?: string;
+  consultationPrice?: number;
+  name?: string;
+  address?: string;
+}
+
 /**
  * Servicio encargado del registro de nuevos usuarios.
  * Realiza una petición POST al endpoint /api/auth/register.
  */
 export const registerService = async (data: RegisterCredentials): Promise<LoginResponse> => {
   const response = await apiClient.post<LoginResponse>('/api/auth/register', data);
+  return response.data;
+};
+
+export const validateInvitationService = async (token: string): Promise<InvitationValidation> => {
+  const response = await apiClient.get<InvitationValidation>('/api/auth/invitations/validate', { params: { token } });
+  return response.data;
+};
+
+export const acceptInvitationService = async (payload: AcceptInvitationPayload): Promise<LoginResponse> => {
+  const response = await apiClient.post<LoginResponse>('/api/auth/accept-invitation', payload);
   return response.data;
 };
 

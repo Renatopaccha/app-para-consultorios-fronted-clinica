@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
+import AcceptInvitation from './pages/AcceptInvitation';
 import ForgotPassword from './pages/ForgotPassword';
 import DashboardLayout from './layouts/DashboardLayout';
 import DashboardIndex from './pages/dashboard/DashboardIndex';
@@ -38,6 +39,7 @@ const App: React.FC = () => {
           {/* Rutas Públicas */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/accept-invitation" element={<AcceptInvitation />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* Ruta Raíz Dinámica */}
@@ -65,4 +67,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-

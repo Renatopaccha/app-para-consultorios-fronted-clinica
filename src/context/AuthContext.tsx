@@ -1,6 +1,7 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { loginService } from '../services/auth.service';
-import type { LoginCredentials, User } from '../services/auth.service';
+import React, { createContext, useState, useEffect, useContext } from 'react';
+import type { ReactNode } from 'react';
+import { loginService, registerService } from '../services/auth.service';
+import type { LoginCredentials, RegisterCredentials, User } from '../services/auth.service';
 
 /**
  * Interfaz que define el estado y las operaciones disponibles en el contexto de autenticación.
