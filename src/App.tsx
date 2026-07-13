@@ -15,6 +15,8 @@ import CertificationsView from './pages/dashboard/CertificationsView';
 import WorkScheduleView from './pages/dashboard/WorkScheduleView';
 import ReviewsView from './pages/dashboard/ReviewsView';
 import WalletView from './pages/dashboard/WalletView';
+import CashPaymentsView from './pages/dashboard/CashPaymentsView';
+import FinanceView from './pages/dashboard/FinanceView';
 
 // ==========================================
 // Componente interno que decide dinámicamente si enviar al usuario 
@@ -54,6 +56,8 @@ const App: React.FC = () => {
               <Route path="certifications" element={<CertificationsView />} />
               <Route path="schedule" element={<WorkScheduleView />} />
               <Route path="reviews" element={<ReviewsView />} />
+              <Route path="cash-payments" element={<CashPaymentsView />} />
+              <Route path="finance" element={<FinanceView />} />
               <Route path="wallet" element={<WalletView />} />
             </Route>
           </Route>

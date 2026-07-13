@@ -24,6 +24,7 @@ export interface CalendarEvent {
   duration: number;     // minutos
   dayIndex: number;     // 0=Lun … 6=Dom relativo a la semana visible
   status: Appointment['status'];
+  displayCode?: Appointment['displayCode'];
   clinicId: string;
 }
 
@@ -75,6 +76,7 @@ const adaptAppointment = (appt: Appointment, weekStart: Date): CalendarEvent | n
     duration: appt.duration_minutes,
     dayIndex,
     status: finalStatus,
+    displayCode: appt.displayCode,
     clinicId: appt.clinic_id,
   };
 };

@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { Calendar, CheckCircle, Users, Play, XCircle, Lock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Calendar, CheckCircle, Users, Play, XCircle } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────
 // TYPES
@@ -55,10 +56,7 @@ const MOCK_APPOINTMENTS: Appointment[] = [
 export default function DashboardIndex() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pinModal, setPinModal] = useState<Appointment | null>(null);
-  const [pin, setPin] = useState(["", "", "", "", "", ""]);
-  const [pinError, setPinError] = useState("");
-  const pinRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -74,33 +72,6 @@ export default function DashboardIndex() {
 
   const updateStatus = (id: string, status: AppointmentStatus) => {
     setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
-  };
-
-  const handlePinChange = (i: number, val: string) => {
-    if (!/^\d?$/.test(val)) return;
-    const next = [...pin];
-    next[i] = val;
-    setPin(next);
-    if (val && i < 5) pinRefs.current[i + 1]?.focus();
-  };
-
-  const submitPin = () => {
-    const full = pin.join("");
-    if (full.length < 6) { setPinError("Ingresa los 6 dígitos del PIN."); return; }
-    if (full === "123456") {
-      if (pinModal) updateStatus(pinModal.id, "CONFIRMED");
-      setPinModal(null);
-      setPin(["", "", "", "", "", ""]);
-      setPinError("");
-    } else {
-      setPinError("PIN incorrecto. Inténtalo de nuevo.");
-    }
-  };
-
-  const openPin = (apt: Appointment) => {
-    setPinModal(apt);
-    setPin(["", "", "", "", "", ""]);
-    setPinError("");
   };
 
   const dotColor: Record<AppointmentStatus, string> = {
@@ -203,8 +174,8 @@ export default function DashboardIndex() {
                       </button>
                     )}
                     {apt.status === "PENDING" && apt.paymentMethod === "CASH" && (
-                      <button onClick={() => openPin(apt)} className="flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-50 transition-all">
-                        <Lock className="w-3 h-3" /> <span className="hidden xl:inline">Validar</span>
+                      <button onClick={() => navigate('/dashboard/cash-payments')} className="flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-50 transition-all">
+                        <span className="hidden xl:inline">Confirmar efectivo</span>
                       </button>
                     )}
                   </div>
@@ -212,36 +183,6 @@ export default function DashboardIndex() {
               ))}
         </div>
       </div>
-
-      {pinModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
-            <div className="text-center mb-6">
-              <div className="w-14 h-14 bg-sky-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-6 h-6 text-sky-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900">Validar Pago en Efectivo</h3>
-              <p className="text-sm text-slate-500">Monto: <strong className="text-slate-700">${pinModal.service.price}</strong></p>
-            </div>
-            <div className="flex gap-2 justify-center mb-4">
-              {pin.map((digit, i) => (
-                <input
-                  key={i} ref={(el) => { pinRefs.current[i] = el; }}
-                  type="password" inputMode="numeric" maxLength={1} value={digit}
-                  onChange={(e) => handlePinChange(i, e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Backspace" && !pin[i] && i > 0) pinRefs.current[i - 1]?.focus(); }}
-                  className={`w-11 h-14 text-center text-xl font-bold border-2 rounded-xl focus:outline-none transition-all ${digit ? "border-sky-500 bg-sky-50" : "border-slate-200"}`}
-                />
-              ))}
-            </div>
-            {pinError && <p className="text-sm text-red-500 text-center mb-4 font-medium">{pinError}</p>}
-            <div className="flex gap-3">
-              <button onClick={() => setPinModal(null)} className="flex-1 py-3 border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50">Cancelar</button>
-              <button onClick={submitPin} className="flex-1 py-3 bg-sky-500 text-white rounded-xl font-semibold hover:bg-sky-600">Confirmar</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -2,13 +2,14 @@ import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
+import type { Role } from "../services/auth.service";
 import {
   Calendar,
   Clock,
   User,
   Award,
   Star,
-  Wallet,
+  Banknote,
   Stethoscope,
   LogOut,
   Menu,
@@ -25,7 +26,8 @@ const NAV_ITEMS = [
   { id: "certifications", label: "Certificaciones", icon: <Award className="w-[18px] h-[18px]" />, path: "/dashboard/certifications" },
   { id: "schedule", label: "Horarios", icon: <Clock className="w-[18px] h-[18px]" />, path: "/dashboard/schedule" },
   { id: "reviews", label: "Reseñas", icon: <Star className="w-[18px] h-[18px]" />, path: "/dashboard/reviews" },
-  { id: "wallet", label: "Billetera", icon: <Wallet className="w-[18px] h-[18px]" />, path: "/dashboard/wallet" },
+  { id: "cash-payments", label: "Pagos en efectivo", icon: <Banknote className="w-[18px] h-[18px]" />, path: "/dashboard/cash-payments", staffOnly: true },
+  { id: "finance", label: "Ingresos", icon: <Banknote className="w-[18px] h-[18px]" />, path: "/dashboard/finance", staffOnly: true },
 ];
 
 const VIEW_LABELS: Record<string, string> = {
@@ -35,7 +37,9 @@ const VIEW_LABELS: Record<string, string> = {
   "/dashboard/certifications": "Certificaciones y Formación",
   "/dashboard/schedule": "Horarios de Trabajo",
   "/dashboard/reviews": "Reseñas de Pacientes",
-  "/dashboard/wallet": "Billetera y Suscripción",
+  "/dashboard/cash-payments": "Pagos en efectivo",
+  "/dashboard/finance": "Ingresos registrados",
+  "/dashboard/wallet": "Ingresos registrados",
 };
 
 // ─────────────────────────────────────────────────────────
@@ -45,12 +49,14 @@ function Sidebar({
   currentPath,
   open,
   onClose,
-  userName
+  userName,
+  role,
 }: {
   currentPath: string;
   open: boolean;
   onClose: () => void;
   userName: string;
+  role?: Role;
 }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -86,7 +92,7 @@ function Sidebar({
 
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter(item => !item.staffOnly || role !== 'PATIENT').map((item) => {
             const isActive = currentPath === item.path;
             return (
               <button
@@ -224,6 +230,7 @@ export default function DashboardLayout() {
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         userName={userName}
+        role={user?.role}
       />
       <Header
         currentPath={location.pathname}

@@ -1,3 +1,6 @@
+/* Legacy route compatibility: financial data now comes from Payment, never walletBalance. */
+export { default } from './FinanceView';
+/*
 import { useState, useEffect } from "react";
 import { Wallet, ArrowDownRight, ArrowUpRight, Shield, Activity } from "lucide-react";
 
@@ -223,3 +226,4 @@ export default function WalletView() {
     </div>
   );
 }
+*/

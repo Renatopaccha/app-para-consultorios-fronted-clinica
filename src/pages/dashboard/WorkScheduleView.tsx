@@ -13,7 +13,7 @@ import { createAppointment } from "../../services/schedule.service";
 // ─────────────────────────────────────────────────────────
 // TYPES & MOCKS
 // ─────────────────────────────────────────────────────────
-type EventStatus = 'CONFIRMED' | 'ATTENDANCE_CONFIRMED' | 'PENDING' | 'BLOCKED_GOOGLE';
+type EventStatus = 'CONFIRMED' | 'ATTENDANCE_CONFIRMED' | 'PENDING' | 'BLOCKED_GOOGLE' | 'CONFIRMED_PAYMENT_PENDING' | 'CONFIRMED_AND_PAID' | 'COMPLETED_PAYMENT_PENDING' | 'COMPLETED_AND_PAID' | 'CONFIRMATION_PENDING_PAYMENT_PENDING' | 'CONFIRMATION_PENDING_PAID' | 'CANCELLED' | 'NO_SHOW' | 'IN_PROGRESS';
 
 type ShiftTime = { hour: string; minute: string; ampm: string };
 type Shift = { startTime: ShiftTime; endTime: ShiftTime };
@@ -443,6 +443,15 @@ export default function WorkScheduleView() {
       case 'ATTENDANCE_CONFIRMED': return "bg-amber-100 text-amber-900 border border-amber-200 border-l-4 border-l-amber-400";
       case 'PENDING': return "bg-white text-slate-600 border-2 border-dashed border-slate-300";
       case 'BLOCKED_GOOGLE': return "bg-slate-100 text-slate-500 border border-slate-200/80 opacity-80 backdrop-blur-sm";
+      case 'CONFIRMED_AND_PAID': return "bg-emerald-500 text-white border border-emerald-600 shadow-sm shadow-emerald-200/50";
+      case 'CONFIRMED_PAYMENT_PENDING': return "bg-amber-100 text-amber-900 border border-amber-200 border-l-4 border-l-amber-400";
+      case 'COMPLETED_AND_PAID': return "bg-emerald-100 text-emerald-800 border border-emerald-200";
+      case 'COMPLETED_PAYMENT_PENDING': return "bg-slate-100 text-slate-600 border border-slate-200";
+      case 'CONFIRMATION_PENDING_PAYMENT_PENDING': return "bg-white text-slate-600 border-2 border-dashed border-slate-300";
+      case 'CONFIRMATION_PENDING_PAID': return "bg-sky-100 text-sky-800 border border-sky-200";
+      case 'CANCELLED': return "bg-red-50 text-red-700 border border-red-200 opacity-75";
+      case 'NO_SHOW': return "bg-orange-50 text-orange-700 border border-orange-200";
+      case 'IN_PROGRESS': return "bg-indigo-500 text-white border border-indigo-600 shadow-sm shadow-indigo-200/50";
     }
   };
 
@@ -451,8 +460,22 @@ export default function WorkScheduleView() {
       case 'BLOCKED_GOOGLE': return <Lock className="w-2.5 h-2.5 shrink-0 opacity-50" />;
       case 'CONFIRMED': return <CheckCircle2 className="w-2.5 h-2.5 shrink-0 opacity-80" />;
       case 'ATTENDANCE_CONFIRMED': return <AlertCircle className="w-2.5 h-2.5 shrink-0 opacity-80" />;
+      case 'CONFIRMED_AND_PAID': return <CheckCircle2 className="w-2.5 h-2.5 shrink-0 opacity-80" />;
+      case 'CONFIRMED_PAYMENT_PENDING': return <AlertCircle className="w-2.5 h-2.5 shrink-0 opacity-80" />;
       default: return null;
     }
+  };
+
+  const getEventLabel = (event: CalendarEvent) => {
+    const state = (event.displayCode || event.status) as EventStatus;
+    const labels: Partial<Record<EventStatus, string>> = {
+      CONFIRMED_PAYMENT_PENDING: 'Cita confirmada · Pago pendiente', CONFIRMED_AND_PAID: 'Cita confirmada · Pagado',
+      COMPLETED_PAYMENT_PENDING: 'Cita completada · Pago pendiente', COMPLETED_AND_PAID: 'Cita completada · Pagado',
+      CONFIRMATION_PENDING_PAYMENT_PENDING: 'Confirmación y pago pendientes', CONFIRMATION_PENDING_PAID: 'Pago registrado · Confirmación pendiente',
+      CANCELLED: 'Cita cancelada', NO_SHOW: 'No asistió', IN_PROGRESS: 'En atención', BLOCKED_GOOGLE: 'Bloqueado (Sincronizado)',
+      ATTENDANCE_CONFIRMED: 'Asistencia confirmada', CONFIRMED: 'Cita confirmada', PENDING: 'Pendiente',
+    };
+    return labels[state] || 'Pendiente';
   };
 
   // ─────────────────────────────────────────────────────────
@@ -667,7 +690,8 @@ export default function WorkScheduleView() {
                       {eventsInSlot.length > 0 && (
                         <div className="absolute inset-0 flex flex-col gap-1 p-1 overflow-hidden z-20">
                           {eventsInSlot.map(event => {
-                            const styleClass = getEventStyles(event.status);
+                            const visualState = (event.displayCode || event.status) as EventStatus;
+                            const styleClass = getEventStyles(visualState);
                             const isShort = event.duration <= 30;
 
                             return (
@@ -683,7 +707,7 @@ export default function WorkScheduleView() {
                               >
                                 {isShort ? (
                                   <div className="flex flex-row items-center px-2 py-1.5 gap-1.5 w-full text-[11px]">
-                                    {getEventIcon(event.status)}
+                                    {getEventIcon(visualState)}
                                     <p className="font-semibold truncate leading-none flex-1 min-w-0">
                                       {event.title}
                                     </p>
@@ -703,7 +727,7 @@ export default function WorkScheduleView() {
                                       <p className="font-semibold text-xs leading-tight truncate">
                                         {event.title}
                                       </p>
-                                      {getEventIcon(event.status)}
+                                      {getEventIcon(visualState)}
                                     </div>
                                     {event.patientName && (
                                       <p className={`text-[10px] truncate ${event.status === 'CONFIRMED' ? 'text-sky-100' : event.status === 'PENDING' ? 'text-slate-500' : 'text-amber-700/80'}`}>
@@ -1236,16 +1260,14 @@ export default function WorkScheduleView() {
                 <div className="flex items-center gap-3 text-sm text-slate-600">
                   <Building2 className="w-4 h-4 text-sky-500 shrink-0" />
                   <span className="font-medium">
-                    {clinics.find(c => c.id === selectedEvent.clinicId)?.name || 'Sede'}
+                    {clinics.find(c => c.id === selectedViewEvent.clinicId)?.name || 'Sede'}
                   </span>
                 </div>
                 
                 <div className="flex items-center gap-3 text-sm text-slate-600">
                    <AlertCircle className="w-4 h-4 text-sky-500 shrink-0" />
                    <span className="font-medium capitalize">
-                     {selectedViewEvent.status === 'BLOCKED_GOOGLE' ? 'Bloqueado (Sincronizado)' : 
-                      selectedViewEvent.status === 'ATTENDANCE_CONFIRMED' ? 'Asistencia Confirmada' : 
-                      selectedViewEvent.status === 'CONFIRMED' ? 'Cita Confirmada' : 'Pendiente'}
+                     {getEventLabel(selectedViewEvent)}
                    </span>
                 </div>
               </div>

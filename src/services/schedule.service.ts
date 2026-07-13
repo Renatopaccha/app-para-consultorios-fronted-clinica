@@ -20,6 +20,17 @@ export type PaymentStatus =
   | 'WAIVED'
   | 'REFUNDED';
 
+export type AppointmentDisplayCode =
+  | 'CONFIRMED_PAYMENT_PENDING'
+  | 'CONFIRMED_AND_PAID'
+  | 'COMPLETED_PAYMENT_PENDING'
+  | 'COMPLETED_AND_PAID'
+  | 'CONFIRMATION_PENDING_PAYMENT_PENDING'
+  | 'CONFIRMATION_PENDING_PAID'
+  | 'CANCELLED'
+  | 'NO_SHOW'
+  | 'IN_PROGRESS';
+
 export type AppointmentType =
   | 'IN_PERSON'
   | 'TELEMEDICINE'
@@ -38,6 +49,7 @@ export interface Appointment {
   appointment_type: AppointmentType;
   notes?: string | null;
   patient_id?: string;
+  displayCode?: AppointmentDisplayCode;
   
   clinicProfile?: {
     name: string;
@@ -87,22 +99,22 @@ export interface CalendarMetrics {
 // ─────────────────────────────────────────────────────────
 
 export const getAppointments = async (
-  start: string,
-  end: string,
-  clinicId?: string
+  _start: string,
+  _end: string,
+  _clinicId?: string
 ): Promise<Appointment[]> => {
-  const params: Record<string, string> = { startDate: start, endDate: end };
-  if (clinicId && clinicId !== 'all') params.clinicId = clinicId;
-  
-  // Ruta real en Node: doctor.routes.ts
-  const response = await apiClient.get<any[]>('/api/doctors/my-appointments', { params });
+  const response = await apiClient.get<any[]>('/api/bookings');
   
   // Mapeamos lo que Prisma retorna al contrato exacto que espera la UI
   return response.data.map(appt => ({
     ...appt,
-    title: appt.service?.name || 'Cita',
-    duration_minutes: appt.service?.duration || 30,
+    title: appt.serviceNameSnapshot || appt.service?.name || 'Cita',
+    patient_name: appt.patient ? `${appt.patient.firstName} ${appt.patient.lastName}`.trim() : null,
+    start_datetime: appt.startDatetime || appt.startsAt,
+    duration_minutes: appt.serviceDurationMinutesSnapshot || appt.service?.duration || 30,
     clinic_id: appt.clinicProfileId,
+    payment_status: appt.paymentStatus,
+    displayCode: appt.displayCode,
   }));
 };
 
